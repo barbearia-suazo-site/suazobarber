@@ -1,0 +1,6 @@
+# Ignorar dependências e variáveis
+node_modules/
+.env
+
+# Ignorar uploads de imagens
+uploads/
