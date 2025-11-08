@@ -1,146 +1,122 @@
+// server/server.js
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
-import multer from "multer";
+import cors from "cors";
+import mongoose from "mongoose";
 import path from "path";
-import fs from "fs";
 import { fileURLToPath } from "url";
 
-import Product from "../models/Product.js";
-import { verifyToken, requireAdmin } from "./auth.routes.js";
-
-const router = express.Router();
-
-/* =========================
-   📂 Configuração da pasta uploads
-========================= */
+/* ================================
+   📁 __dirname en ESM
+================================ */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const uploadDir = path.join(__dirname, "..", "uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+/* ================================
+   🚀 App
+================================ */
+const app = express();
 
-/* =========================
-   📷 Multer - Upload de Imagens
-========================= */
-const storage = multer.diskStorage({
-  destination: (_, __, cb) => cb(null, uploadDir),
-  filename: (_req, file, cb) => {
-    const safeOriginal = file.originalname.replace(/\s+/g, "_");
-    cb(
-      null,
-      `${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(safeOriginal)}`
-    );
-  },
+// Recomendado en Render/Proxies
+app.set("trust proxy", 1);
+
+/* ================================
+   🧩 Middlewares
+================================ */
+const allowlist = [
+  process.env.CLIENT_ORIGIN,                    // p.ej. https://suazobarber.vercel.app
+  process.env.RENDER_EXTERNAL_URL,              // p.ej. https://suazobarber.onrender.com
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+].filter(Boolean);
+
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      // Permite llamadas desde tools, curl o SSR sin origin
+      if (!origin) return cb(null, true);
+      if (allowlist.some((o) => origin.startsWith(o))) return cb(null, true);
+      return cb(new Error(`Origen no permitido por CORS: ${origin}`));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+app.use(express.json({ limit: "10mb" }));
+
+/* ================================
+   📂 Archivos estáticos (uploads)
+   ⚠️ En Render, el disco es efímero:
+   se borra en cada deploy/restart.
+================================ */
+const uploadsPath = path.join(__dirname, "uploads");
+app.use("/uploads", express.static(uploadsPath));
+console.log(`📸 Sirviendo uploads desde: ${uploadsPath}`);
+
+/* ================================
+   🔗 Rutas
+================================ */
+import authRoutes from "./routes/auth.routes.js";
+import productRoutes from "./routes/products.routes.js";
+import bookingsRoutes from "./routes/bookings.routes.js";
+import reportsRoutes from "./routes/reports.routes.js";
+import salesRoutes from "./routes/sales.routes.js";
+
+// Prefijos de API
+app.use("/api/auth", authRoutes);
+app.use("/api/products", productRoutes);
+app.use("/api/bookings", bookingsRoutes);
+app.use("/api/reports", reportsRoutes);
+app.use("/api/sales", salesRoutes);
+
+/* ================================
+   🧪 Health Check
+================================ */
+app.get("/", (_req, res) => {
+  res.send("✅ Servidor y API funcionando correctamente!");
 });
 
-const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-  fileFilter: (_req, file, cb) => {
-    const allowed = /\.(jpe?g|png|webp|gif)$/i;
-    if (allowed.test(file.originalname)) cb(null, true);
-    else cb(new Error("Tipo de arquivo não permitido. Apenas imagens."));
-  },
+/* ================================
+   404 y Handler de errores
+================================ */
+app.use((req, res) => {
+  res.status(404).json({ error: "Ruta no encontrada" });
 });
 
-/* =========================
-   📦 Listar produtos (público)
-========================= */
-router.get("/", async (_req, res) => {
-  try {
-    const products = await Product.find().sort({ createdAt: -1 });
-    res.json(products);
-  } catch (err) {
-    console.error("❌ Erro ao obter produtos:", err);
-    res.status(500).json({ error: "Erro ao obter os produtos" });
-  }
+app.use((err, _req, res, _next) => {
+  console.error("❌ Error:", err?.message || err);
+  res.status(500).json({ error: "Error interno del servidor" });
 });
 
-/* =========================
-   🔍 Obter produto por ID
-========================= */
-router.get("/:id", async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id);
-    if (!product) return res.status(404).json({ error: "Produto não encontrado" });
-    res.json(product);
-  } catch (err) {
-    console.error("❌ Erro ao obter produto:", err);
-    res.status(500).json({ error: "Erro ao obter o produto" });
-  }
+/* ================================
+   🧠 MongoDB
+================================ */
+mongoose.set("strictQuery", true);
+
+const MONGO = process.env.MONGO_URI || "mongodb://localhost:27017/barbearia";
+
+mongoose
+  .connect(MONGO, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() =>
+    console.log("✅ Conexión a MongoDB establecida correctamente")
+  )
+  .catch((err) =>
+    console.error("❌ Error al conectar con MongoDB:", err?.message || err)
+  );
+
+/* ================================
+   🚀 Arranque
+================================ */
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor escuchando en el puerto ${PORT}`);
+  console.log(`🌍 Base URL: http://localhost:${PORT}`);
+  console.log(`🖼️ Imágenes: http://localhost:${PORT}/uploads/<nombre-de-archivo>`);
 });
-
-/* =========================
-   ➕ Criar produto (admin)
-========================= */
-router.post("/", verifyToken, requireAdmin, upload.single("image"), async (req, res) => {
-  try {
-    const { name, price, description } = req.body;
-    if (!name || !price) {
-      return res.status(400).json({ error: "Nome e preço são obrigatórios." });
-    }
-
-    // salva apenas o nome do arquivo
-    const image = req.file ? req.file.filename : null;
-
-    const product = new Product({
-      name,
-      price,
-      description: description || "",
-      image,
-    });
-
-    await product.save();
-    res.status(201).json(product);
-  } catch (err) {
-    console.error("❌ Erro ao criar produto:", err);
-    res.status(500).json({ error: "Erro ao criar produto." });
-  }
-});
-
-/* =========================
-   ✏️ Editar produto (admin)
-========================= */
-router.put("/:id", verifyToken, requireAdmin, upload.single("image"), async (req, res) => {
-  try {
-    const { name, price, description } = req.body;
-    const update = {};
-
-    if (name !== undefined) update.name = name;
-    if (price !== undefined) update.price = price;
-    if (description !== undefined) update.description = description;
-    if (req.file) update.image = req.file.filename;
-
-    const updated = await Product.findByIdAndUpdate(req.params.id, update, { new: true });
-    if (!updated) return res.status(404).json({ error: "Produto não encontrado" });
-
-    res.json(updated);
-  } catch (err) {
-    console.error("❌ Erro ao atualizar produto:", err);
-    res.status(500).json({ error: "Erro ao atualizar produto." });
-  }
-});
-
-/* =========================
-   🗑️ Deletar produto (admin)
-========================= */
-router.delete("/:id", verifyToken, requireAdmin, async (req, res) => {
-  try {
-    const deleted = await Product.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ error: "Produto não encontrado" });
-
-    // Opcional: remover o arquivo da pasta uploads
-    // if (deleted.image) {
-    //   const filePath = path.join(uploadDir, deleted.image);
-    //   fs.unlink(filePath, () => {});
-    // }
-
-    res.json({ message: "Produto removido com sucesso." });
-  } catch (err) {
-    console.error("❌ Erro ao deletar produto:", err);
-    res.status(500).json({ error: "Erro ao deletar produto." });
-  }
-});
-
-export default router;
