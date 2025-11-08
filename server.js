@@ -105,15 +105,18 @@ app.use((req, res) => {
 /* =====================================
    🧠 Conexão com MongoDB
 ===================================== */
+const mongoUri = process.env.MONGO_URI || "mongodb://localhost:27017/barbearia";
+
 mongoose.set("strictQuery", true);
 
-const mongoUri = process.env.MONGO_URI || "mongodb://localhost:27017/barbearia";
 mongoose
-  .connect(mongoUri, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log("✅ Conexión a MongoDB establecida correctamente"))
-  .catch((err) =>
-    console.error("❌ Error al conectar con MongoDB:", err?.message || err)
-  );
+  .connect(mongoUri, {
+    dbName: "barbearia",          // <- garante que NÃO vai para 'test'
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log("✅ Conectado ao MongoDB:", mongoose.connection.name))
+  .catch((err) => console.error("❌ Erro Mongo:", err?.message || err));
 
 /* =====================================
    🚀 Iniciar servidor
