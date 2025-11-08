@@ -60,7 +60,7 @@ console.log(`📸 Sirviendo uploads desde: ${uploadsPath}`);
 /* ================================
    🔗 Rutas
 ================================ */
-import authRoutes from "./routes/auth.routes.js";
+import authRoutes from "./auth.routes.js";
 import productRoutes from "./routes/products.routes.js";
 import bookingsRoutes from "./routes/bookings.routes.js";
 import reportsRoutes from "./routes/reports.routes.js";
