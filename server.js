@@ -107,8 +107,6 @@ app.use((req, res) => {
 ===================================== */
 const mongoUri = process.env.MONGO_URI || "mongodb://localhost:27017/barbearia";
 
-mongoose.set("strictQuery", true);
-
 mongoose
   .connect(mongoUri, {
     dbName: "barbearia",          // <- garante que NÃO vai para 'test'
