@@ -8,21 +8,14 @@ import mongoose from "mongoose";
 import path from "path";
 import { fileURLToPath } from "url";
 
-/* =====================================
-   🧭 ESM: resolver __dirname corretamente
-===================================== */
+// Resolver __dirname no ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/* =====================================
-   🚀 Inicializar app
-===================================== */
 const app = express();
 
 /* =====================================
-   🔐 CORS (suporta múltiplas origens)
-   - defina CLIENT_ORIGIN com 1 ou + URLs separadas por vírgula
-     ex: https://suazobarber.onrender.com,https://suazobarber.vercel.app
+   ✅ CORS com múltiplas origens
 ===================================== */
 const parseOrigins = (value) =>
   (value || "")
@@ -37,74 +30,55 @@ const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins])];
 app.use(
   cors({
     origin: (origin, callback) => {
-      // permitir requests de ferramentas (ex: curl/postman) sem origin
       if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
       return callback(new Error(`CORS bloqueado para origem: ${origin}`), false);
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    maxAge: 86400,
   })
 );
 
-// tratar preflight
-app.options("*", cors());
-
-/* =====================================
-   🧩 Middlewares principais
-===================================== */
 app.use(express.json({ limit: "10mb" }));
 
 /* =====================================
-   📂 Servir arquivos estáticos de uploads
-   ⚠️ Em Render o disco é efêmero — prefira Cloudinary futuramente.
+   ✅ Servir uploads
 ===================================== */
 const uploadsPath = path.join(__dirname, "uploads");
 app.use("/uploads", express.static(uploadsPath));
 console.log(`📸 Pasta de uploads servida em: ${uploadsPath}`);
 
 /* =====================================
-   🔗 Importar rotas
-   (garanta que esses arquivos existem)
+   ✅ Rotas corretas
 ===================================== */
 import authRoutes from "./routes/auth.routes.js";
 import productRoutes from "./routes/products.routes.js";
+import salesRoutes from "./routes/sales.routes.js";
 import bookingsRoutes from "./routes/bookings.routes.js";
 import reportsRoutes from "./routes/reports.routes.js";
-import salesRoutes from "./routes/sales.routes.js";
+
+// ✅ Rota de upload corrigida para ESM
+import uploadRoutes from "./routes/upload.routes.cjs";
 
 /* =====================================
-   🧭 Prefixos da API
+   ✅ Prefixos
 ===================================== */
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
+app.use("/api/sales", salesRoutes);
 app.use("/api/bookings", bookingsRoutes);
 app.use("/api/reports", reportsRoutes);
-app.use("/api/sales", salesRoutes);
+app.use("/api/upload", uploadRoutes);
 
 /* =====================================
-   🧪 Health-check
+   ✅ Health check
 ===================================== */
-app.get("/", (_req, res) => {
-  res.send("✅ Servidor y API funcionando correctamente!");
-});
-
-app.get("/health", (_req, res) => {
-  res.json({ ok: true, uptime: process.uptime() });
-});
+app.get("/", (_req, res) => res.send("✅ API funcionando"));
+app.get("/health", (_req, res) => res.json({ ok: true }));
 
 /* =====================================
-   ⚠️ 404 - Rota não encontrada
+   ✅ MongoDB Conexão correta
 ===================================== */
-app.use((req, res) => {
-  res.status(404).json({ error: "Rota não encontrada" });
-});
-
-/* =====================================
-   🧠 Conexão com MongoDB
-===================================== */
+<<<<<<< HEAD
 const mongoUri = process.env.MONGO_URI || "mongodb://localhost:27017/barbearia";
 
 mongoose
@@ -115,16 +89,26 @@ mongoose
   })
   .then(() => console.log("✅ Conectado ao MongoDB:", mongoose.connection.name))
   .catch((err) => console.error("❌ Erro Mongo:", err?.message || err));
+=======
+mongoose.set("strictQuery", true);
+
+const mongoUri = process.env.MONGO_URI;
+
+mongoose
+  .connect(mongoUri, {
+    dbName: "barbearia", // ✅ Não usa database test
+  })
+  .then(() =>
+    console.log("✅ Conectado ao MongoDB:", mongoose.connection.name)
+  )
+  .catch((err) => console.error("❌ Erro Mongo:", err.message));
+>>>>>>> e602766 (update server)
 
 /* =====================================
-   🚀 Iniciar servidor
+   ✅ Start Server
 ===================================== */
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor escuchando en el puerto ${PORT}`);
-  console.log(`🌍 API base: http://localhost:${PORT}`);
-  console.log(`🖼️ Imágenes: http://localhost:${PORT}/uploads/<archivo>`);
-  if (allowedOrigins.length) {
-    console.log("✅ CORS permitido para:", allowedOrigins.join(", "));
-  }
+  console.log(`🚀 Servidor rodando porta ${PORT}`);
+  console.log(`✅ CORS permitido para:`, allowedOrigins);
 });
