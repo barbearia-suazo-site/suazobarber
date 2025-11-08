@@ -1,122 +1,76 @@
-// server/server.js
-import dotenv from "dotenv";
-dotenv.config();
-
+// server/routes/products.routes.js
 import express from "express";
-import cors from "cors";
-import mongoose from "mongoose";
-import path from "path";
-import { fileURLToPath } from "url";
+import { verifyToken, requireAdmin } from "./auth.routes.js";
+import Product from "../models/Product.js";
 
-/* ================================
-   📁 __dirname en ESM
-================================ */
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const router = express.Router();
 
-/* ================================
-   🚀 App
-================================ */
-const app = express();
-
-// Recomendado en Render/Proxies
-app.set("trust proxy", 1);
-
-/* ================================
-   🧩 Middlewares
-================================ */
-const allowlist = [
-  process.env.CLIENT_ORIGIN,                    // p.ej. https://suazobarber.vercel.app
-  process.env.RENDER_EXTERNAL_URL,              // p.ej. https://suazobarber.onrender.com
-  "http://localhost:3000",
-  "http://127.0.0.1:3000",
-].filter(Boolean);
-
-app.use(
-  cors({
-    origin: (origin, cb) => {
-      // Permite llamadas desde tools, curl o SSR sin origin
-      if (!origin) return cb(null, true);
-      if (allowlist.some((o) => origin.startsWith(o))) return cb(null, true);
-      return cb(new Error(`Origen no permitido por CORS: ${origin}`));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-
-app.use(express.json({ limit: "10mb" }));
-
-/* ================================
-   📂 Archivos estáticos (uploads)
-   ⚠️ En Render, el disco es efímero:
-   se borra en cada deploy/restart.
-================================ */
-const uploadsPath = path.join(__dirname, "uploads");
-app.use("/uploads", express.static(uploadsPath));
-console.log(`📸 Sirviendo uploads desde: ${uploadsPath}`);
-
-/* ================================
-   🔗 Rutas
-================================ */
-import authRoutes from "./auth.routes.js";
-import productRoutes from "./routes/products.routes.js";
-import bookingsRoutes from "./routes/bookings.routes.js";
-import reportsRoutes from "./routes/reports.routes.js";
-import salesRoutes from "./routes/sales.routes.js";
-
-// Prefijos de API
-app.use("/api/auth", authRoutes);
-app.use("/api/products", productRoutes);
-app.use("/api/bookings", bookingsRoutes);
-app.use("/api/reports", reportsRoutes);
-app.use("/api/sales", salesRoutes);
-
-/* ================================
-   🧪 Health Check
-================================ */
-app.get("/", (_req, res) => {
-  res.send("✅ Servidor y API funcionando correctamente!");
+/* =====================================
+   ➕ Criar produto (apenas admin)
+===================================== */
+router.post("/", verifyToken, requireAdmin, async (req, res) => {
+  try {
+    const product = await Product.create(req.body);
+    res.status(201).json(product);
+  } catch (err) {
+    console.error("❌ Erro ao criar produto:", err);
+    res.status(500).json({ error: "Erro ao criar produto" });
+  }
 });
 
-/* ================================
-   404 y Handler de errores
-================================ */
-app.use((req, res) => {
-  res.status(404).json({ error: "Ruta no encontrada" });
+/* =====================================
+   📋 Listar todos
+===================================== */
+router.get("/", async (_req, res) => {
+  try {
+    const products = await Product.find().sort({ createdAt: -1 });
+    res.json(products);
+  } catch (err) {
+    console.error("❌ Erro ao listar produtos:", err);
+    res.status(500).json({ error: "Erro ao buscar produtos" });
+  }
 });
 
-app.use((err, _req, res, _next) => {
-  console.error("❌ Error:", err?.message || err);
-  res.status(500).json({ error: "Error interno del servidor" });
+/* =====================================
+   🔍 Buscar 1
+===================================== */
+router.get("/:id", async (req, res) => {
+  try {
+    const item = await Product.findById(req.params.id);
+    if (!item) return res.status(404).json({ error: "Produto não encontrado" });
+    res.json(item);
+  } catch (err) {
+    console.error("❌ Erro ao buscar produto:", err);
+    res.status(500).json({ error: "Erro ao buscar produto" });
+  }
 });
 
-/* ================================
-   🧠 MongoDB
-================================ */
-mongoose.set("strictQuery", true);
-
-const MONGO = process.env.MONGO_URI || "mongodb://localhost:27017/barbearia";
-
-mongoose
-  .connect(MONGO, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() =>
-    console.log("✅ Conexión a MongoDB establecida correctamente")
-  )
-  .catch((err) =>
-    console.error("❌ Error al conectar con MongoDB:", err?.message || err)
-  );
-
-/* ================================
-   🚀 Arranque
-================================ */
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor escuchando en el puerto ${PORT}`);
-  console.log(`🌍 Base URL: http://localhost:${PORT}`);
-  console.log(`🖼️ Imágenes: http://localhost:${PORT}/uploads/<nombre-de-archivo>`);
+/* =====================================
+   ✏️ Atualizar (apenas admin)
+===================================== */
+router.put("/:id", verifyToken, requireAdmin, async (req, res) => {
+  try {
+    const updated = await Product.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+    });
+    res.json(updated);
+  } catch (err) {
+    console.error("❌ Erro ao atualizar produto:", err);
+    res.status(500).json({ error: "Erro ao atualizar produto" });
+  }
 });
+
+/* =====================================
+   🗑️ Remover (apenas admin)
+===================================== */
+router.delete("/:id", verifyToken, requireAdmin, async (req, res) => {
+  try {
+    await Product.findByIdAndDelete(req.params.id);
+    res.json({ message: "Produto removido" });
+  } catch (err) {
+    console.error("❌ Erro ao remover produto:", err);
+    res.status(500).json({ error: "Erro ao remover produto" });
+  }
+});
+
+export default router;
