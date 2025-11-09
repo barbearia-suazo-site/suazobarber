@@ -6,6 +6,7 @@ import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 
 // __dirname em ESM
@@ -44,6 +45,9 @@ app.use(express.json({ limit: "10mb" }));
    Arquivos de upload
 ======================= */
 const uploadsPath = path.join(__dirname, "uploads");
+// garante que a pasta exista em tempo de execução (Render é efêmero)
+fs.mkdirSync(uploadsPath, { recursive: true });
+
 app.use("/uploads", express.static(uploadsPath));
 
 /* =======================
@@ -54,7 +58,7 @@ import productRoutes from "./routes/products.routes.js";
 import salesRoutes from "./routes/sales.routes.js";
 import bookingsRoutes from "./routes/bookings.routes.js";
 import reportsRoutes from "./routes/reports.routes.js";
-import uploadRoutes from "./routes/upload.routes.js"; // << export default
+import uploadRoutes from "./routes/upload.routes.js"; // export default
 
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
