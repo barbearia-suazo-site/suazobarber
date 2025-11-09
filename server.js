@@ -48,15 +48,14 @@ app.use("/uploads", express.static(uploadsPath));
 console.log(`📸 Pasta de uploads servida em: ${uploadsPath}`);
 
 /* =====================================
-   ✅ Rotas corretas
+   ✅ Rotas
 ===================================== */
 import authRoutes from "./routes/auth.routes.js";
 import productRoutes from "./routes/products.routes.js";
 import salesRoutes from "./routes/sales.routes.js";
 import bookingsRoutes from "./routes/bookings.routes.js";
 import reportsRoutes from "./routes/reports.routes.js";
-
-// ✅ Rota de upload corrigida para ESM
+// CJS funciona como default em ESM
 import uploadRoutes from "./routes/upload.routes.cjs";
 
 /* =====================================
@@ -76,33 +75,22 @@ app.get("/", (_req, res) => res.send("✅ API funcionando"));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 /* =====================================
-   ✅ MongoDB Conexão correta
+   ✅ MongoDB Conexão
 ===================================== */
-<<<<<<< HEAD
-const mongoUri = process.env.MONGO_URI || "mongodb://localhost:27017/barbearia";
+mongoose.set("strictQuery", true);
+
+// Aceita MONGODB_URI (Vercel/Render) ou MONGO_URI (fallback) ou local
+const mongoUri =
+  process.env.MONGODB_URI ||
+  process.env.MONGO_URI ||
+  "mongodb://localhost:27017/barbearia";
 
 mongoose
   .connect(mongoUri, {
-    dbName: "barbearia",          // <- garante que NÃO vai para 'test'
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
+    dbName: "barbearia", // evita usar 'test'
   })
   .then(() => console.log("✅ Conectado ao MongoDB:", mongoose.connection.name))
   .catch((err) => console.error("❌ Erro Mongo:", err?.message || err));
-=======
-mongoose.set("strictQuery", true);
-
-const mongoUri = process.env.MONGO_URI;
-
-mongoose
-  .connect(mongoUri, {
-    dbName: "barbearia", // ✅ Não usa database test
-  })
-  .then(() =>
-    console.log("✅ Conectado ao MongoDB:", mongoose.connection.name)
-  )
-  .catch((err) => console.error("❌ Erro Mongo:", err.message));
->>>>>>> e602766 (update server)
 
 /* =====================================
    ✅ Start Server
