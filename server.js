@@ -56,7 +56,7 @@ import salesRoutes from "./routes/sales.routes.js";
 import bookingsRoutes from "./routes/bookings.routes.js";
 import reportsRoutes from "./routes/reports.routes.js";
 // CJS funciona como default em ESM
-import uploadRoutes from "./routes/upload.routes.cjs";
+import uploadRoutes from "./routes/upload.routes.js";
 
 /* =====================================
    ✅ Prefixos
