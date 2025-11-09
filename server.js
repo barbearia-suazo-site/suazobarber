@@ -1,4 +1,4 @@
-// server/server.js
+// server.js (na raiz do repo)
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -8,15 +8,15 @@ import mongoose from "mongoose";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// Resolver __dirname no ESM
+// __dirname em ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 
-/* =====================================
-   ✅ CORS com múltiplas origens
-===================================== */
+/* =======================
+   CORS (múltiplas origens)
+======================= */
 const parseOrigins = (value) =>
   (value || "")
     .split(",")
@@ -29,10 +29,10 @@ const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins])];
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error(`CORS bloqueado para origem: ${origin}`), false);
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // curl/postman
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      return cb(new Error(`CORS bloqueado para origem: ${origin}`), false);
     },
     credentials: true,
   })
@@ -40,27 +40,22 @@ app.use(
 
 app.use(express.json({ limit: "10mb" }));
 
-/* =====================================
-   ✅ Servir uploads
-===================================== */
+/* =======================
+   Arquivos de upload
+======================= */
 const uploadsPath = path.join(__dirname, "uploads");
 app.use("/uploads", express.static(uploadsPath));
-console.log(`📸 Pasta de uploads servida em: ${uploadsPath}`);
 
-/* =====================================
-   ✅ Rotas
-===================================== */
+/* =======================
+   Rotas
+======================= */
 import authRoutes from "./routes/auth.routes.js";
 import productRoutes from "./routes/products.routes.js";
 import salesRoutes from "./routes/sales.routes.js";
 import bookingsRoutes from "./routes/bookings.routes.js";
 import reportsRoutes from "./routes/reports.routes.js";
-// CJS funciona como default em ESM
-import uploadRoutes from "./routes/upload.routes.js";
+import uploadRoutes from "./routes/upload.routes.js"; // << export default
 
-/* =====================================
-   ✅ Prefixos
-===================================== */
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/sales", salesRoutes);
@@ -68,15 +63,15 @@ app.use("/api/bookings", bookingsRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/upload", uploadRoutes);
 
-/* =====================================
-   ✅ Health check
-===================================== */
+/* =======================
+   Health
+======================= */
 app.get("/", (_req, res) => res.send("✅ API funcionando"));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
-/* =====================================
-   ✅ MongoDB Conexão
-===================================== */
+/* =======================
+   MongoDB
+======================= */
 mongoose.set("strictQuery", true);
 
 // Aceita MONGODB_URI (Vercel/Render) ou MONGO_URI (fallback) ou local
@@ -86,17 +81,18 @@ const mongoUri =
   "mongodb://localhost:27017/barbearia";
 
 mongoose
-  .connect(mongoUri, {
-    dbName: "barbearia", // evita usar 'test'
-  })
-  .then(() => console.log("✅ Conectado ao MongoDB:", mongoose.connection.name))
-  .catch((err) => console.error("❌ Erro Mongo:", err?.message || err));
+  .connect(mongoUri, { dbName: "barbearia" })
+  .then(() => console.log("✅ Mongo conectado:", mongoose.connection.name))
+  .catch((err) => {
+    console.error("❌ Erro Mongo:", err?.message || err);
+    process.exit(1);
+  });
 
-/* =====================================
-   ✅ Start Server
-===================================== */
+/* =======================
+   Start
+======================= */
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando porta ${PORT}`);
-  console.log(`✅ CORS permitido para:`, allowedOrigins);
+  console.log(`🚀 Server na porta ${PORT}`);
+  console.log("✅ CORS permitido para:", allowedOrigins);
 });
