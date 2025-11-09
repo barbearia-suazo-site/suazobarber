@@ -10,12 +10,17 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // salva os arquivos em ./uploads (mesma raiz do server.js)
+const uploadsPath = path.join(__dirname, "..", "uploads");
+
 const storage = multer.diskStorage({
-  destination: path.join(__dirname, "..", "uploads"),
+  destination: uploadsPath,
   filename: (_req, file, cb) => cb(null, Date.now() + "_" + file.originalname),
 });
 
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+});
 
 // POST /api/upload  (campo: "file")
 router.post("/", upload.single("file"), (req, res) => {
@@ -23,4 +28,4 @@ router.post("/", upload.single("file"), (req, res) => {
   res.json({ ok: true, url: `/uploads/${req.file.filename}` });
 });
 
-export default router; // 🔴 ESSENCIAL: exporta default
+export default router;
