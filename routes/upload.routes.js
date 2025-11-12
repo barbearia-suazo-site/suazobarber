@@ -12,7 +12,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// multer em memória (não grava disco)
+// multer em memória (não grava em disco)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
@@ -25,12 +25,12 @@ router.post("/", upload.single("file"), async (req, res) => {
 
     const base64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
     const result = await cloudinary.uploader.upload(base64, {
-      folder: "productos", // opcional
+      folder: "productos", // opcional: pasta dentro do Cloudinary
     });
 
     res.json({ ok: true, url: result.secure_url });
   } catch (err) {
-    console.error("Erro ao subir imagem:", err);
+    console.error("❌ Erro ao subir imagem:", err);
     res.status(500).json({ error: "Erro ao subir imagem" });
   }
 });
