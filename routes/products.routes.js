@@ -4,56 +4,81 @@ import { verifyToken, requireAdmin } from "./auth.routes.js";
 import Product from "../models/Product.js";
 
 import multer from "multer";
-import path from "path";
-import { fileURLToPath } from "url";
+// ⬇️ ADICIONE: Cloudinary (ou troque pelo seu storage)
+import { v2 as cloudinary } from "cloudinary";
 
 const router = express.Router();
 
 /* =======================
-   Config de upload local (opcional)
+   Cloudinary (env vars necessárias):
+   CLOUDINARY_CLOUD_NAME
+   CLOUDINARY_API_KEY
+   CLOUDINARY_API_SECRET
 ======================= */
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const uploadsPath = path.join(__dirname, "..", "uploads");
-
-const storage = multer.diskStorage({
-  destination: uploadsPath,
-  filename: (_req, file, cb) => cb(null, Date.now() + "_" + file.originalname),
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
+/* =======================
+   Multer em memória (NÃO disco)
+======================= */
 const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
 });
 
 /* =====================================
    ➕ Criar produto (apenas admin)
    - Aceita:
-     a) multipart/form-data com campo "file" (imagem) + campos texto
-     b) JSON com "imageUrl" já pronto
+     a) multipart/form-data com campo "file" ou "image"
+     b) JSON com "imageUrl"
 ===================================== */
-router.post("/", verifyToken, requireAdmin, upload.single("file"), async (req, res) => {
-  try {
-    const { name, price, description, imageUrl } = req.body;
+router.post(
+  "/",
+  verifyToken,
+  requireAdmin,
+  upload.fields([{ name: "file", maxCount: 1 }, { name: "image", maxCount: 1 }]),
+  async (req, res) => {
+    try {
+      const { name, price, description, imageUrl } = req.body;
 
-    // decide a imagem: upload local OU url já enviada
-    const finalImageUrl = req.file
-      ? `/uploads/${req.file.filename}`
-      : (imageUrl || "");
+      // 1) Se veio arquivo, sobe para Cloudinary
+      let finalImageUrl = imageUrl || "";
+      const fileFromForm =
+        (req.files?.file?.[0]) ||
+        (req.files?.image?.[0]) ||
+        null;
 
-    const payload = {
-      name,
-      price,
-      description,
-      imageUrl: finalImageUrl,
-    };
+      if (fileFromForm && fileFromForm.buffer && fileFromForm.mimetype) {
+        // Converte buffer em base64 data URI
+        const base64 = `data:${fileFromForm.mimetype};base64,${fileFromForm.buffer.toString("base64")}`;
 
-    const product = await Product.create(payload);
-    res.status(201).json(product);
-  } catch (err) {
-    console.error("❌ Erro ao criar produto:", err);
-    res.status(500).json({ error: "Erro ao criar produto" });
+        const up = await cloudinary.uploader.upload(base64, {
+          folder: "productos", // opcional: pasta de destino
+        });
+
+        finalImageUrl = up.secure_url;
+      }
+
+      // 2) Monta payload
+      const payload = {
+        name,
+        price,
+        description,
+        imageUrl: finalImageUrl, // pode ficar vazio se você permitir produto sem imagem
+      };
+
+      // 3) Salva no DB
+      const product = await Product.create(payload);
+      return res.status(201).json(product);
+    } catch (err) {
+      console.error("❌ Erro ao criar produto:", err);
+      return res.status(500).json({ error: "Erro ao criar produto" });
+    }
   }
-});
+);
 
 /* =====================================
    📋 Listar todos
@@ -84,29 +109,39 @@ router.get("/:id", async (req, res) => {
 
 /* =====================================
    ✏️ Atualizar (apenas admin)
-   - Aceita trocar imagem (file) ou só campos
+   - Aceita trocar imagem (file/image) ou só campos
 ===================================== */
-router.put("/:id", verifyToken, requireAdmin, upload.single("file"), async (req, res) => {
-  try {
-    const { name, price, description, imageUrl } = req.body;
+router.put(
+  "/:id",
+  verifyToken,
+  requireAdmin,
+  upload.fields([{ name: "file", maxCount: 1 }, { name: "image", maxCount: 1 }]),
+  async (req, res) => {
+    try {
+      const { name, price, description, imageUrl } = req.body;
+      const update = { name, price, description };
 
-    const update = { name, price, description };
+      const fileFromForm =
+        (req.files?.file?.[0]) ||
+        (req.files?.image?.[0]) ||
+        null;
 
-    if (req.file) {
-      update.imageUrl = `/uploads/${req.file.filename}`;
-    } else if (imageUrl) {
-      update.imageUrl = imageUrl;
+      if (fileFromForm && fileFromForm.buffer && fileFromForm.mimetype) {
+        const base64 = `data:${fileFromForm.mimetype};base64,${fileFromForm.buffer.toString("base64")}`;
+        const up = await cloudinary.uploader.upload(base64, { folder: "productos" });
+        update.imageUrl = up.secure_url;
+      } else if (imageUrl) {
+        update.imageUrl = imageUrl;
+      }
+
+      const updated = await Product.findByIdAndUpdate(req.params.id, update, { new: true });
+      res.json(updated);
+    } catch (err) {
+      console.error("❌ Erro ao atualizar produto:", err);
+      res.status(500).json({ error: "Erro ao atualizar produto" });
     }
-
-    const updated = await Product.findByIdAndUpdate(req.params.id, update, {
-      new: true,
-    });
-    res.json(updated);
-  } catch (err) {
-    console.error("❌ Erro ao atualizar produto:", err);
-    res.status(500).json({ error: "Erro ao atualizar produto" });
   }
-});
+);
 
 /* =====================================
    🗑️ Remover (apenas admin)
