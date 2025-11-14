@@ -1,4 +1,4 @@
-// routes/bookings.routes.js
+// server/routes/bookings.routes.js
 import express from "express";
 import mongoose from "mongoose";
 import Service from "../models/Service.js";
@@ -23,11 +23,20 @@ const Sale =
  * 📅 Criar reserva REAL:
  * - valida dados
  * - grava Appointment no Mongo
- * - tenta encontrar o Service e registrar uma Sale com o preço
+ * - tenta registrar uma Sale com o valor do serviço
  */
 router.post("/", async (req, res) => {
   try {
-    const { name, email, service, date, duration } = req.body;
+    const {
+      name,
+      email,
+      service,      // nome do serviço (ex.: "Corte Simples")
+      serviceId,    // opcional: id do serviço
+      date,
+      duration,
+      price,        // opcional: preço enviado pelo front
+      total,        // opcional: total enviado pelo front
+    } = req.body;
 
     if (!name || !email || !service || !date || !duration) {
       return res
@@ -44,16 +53,41 @@ router.post("/", async (req, res) => {
       date: startTime,
       durationMinutes: duration,
       status: "scheduled",
-      // employee pode ser null se não informado
     });
 
-    // 2) Tentar encontrar o serviço para obter o preço
-    const serviceDoc = await Service.findOne({ name: service });
+    // 2) Determinar o valor da venda
+    let finalTotal = null;
+
+    // a) se veio "total" no body
+    if (typeof total === "number") {
+      finalTotal = total;
+    }
+    // b) se veio "price" no body
+    else if (typeof price === "number") {
+      finalTotal = price;
+    } else {
+      // c) tentar buscar por ID do serviço
+      let serviceDoc = null;
+
+      if (serviceId) {
+        serviceDoc = await Service.findById(serviceId);
+      }
+
+      // d) se não tem ID ou não achou, tenta pelo nome
+      if (!serviceDoc && service) {
+        serviceDoc = await Service.findOne({ name: service });
+      }
+
+      if (serviceDoc && typeof serviceDoc.price === "number") {
+        finalTotal = serviceDoc.price;
+      }
+    }
+
     let sale = null;
 
-    if (serviceDoc && typeof serviceDoc.price === "number") {
+    if (finalTotal != null && !Number.isNaN(Number(finalTotal))) {
       sale = await Sale.create({
-        total: serviceDoc.price,
+        total: Number(finalTotal),
       });
     }
 
@@ -63,7 +97,7 @@ router.post("/", async (req, res) => {
       service,
       startTime,
       endTime,
-      saleTotal: sale?.total,
+      finalTotal,
     });
 
     return res.status(200).json({
