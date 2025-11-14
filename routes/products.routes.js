@@ -1,6 +1,6 @@
 // routes/products.routes.js
 import express from "express";
-import { verifyToken, requireAdmin } from "../middlewares/auth.js";
+import { verifyToken, requireAdmin } from "../middleware/auth.js";
 import Product from "../models/Product.js";
 
 import multer from "multer";
@@ -157,4 +157,5 @@ router.delete("/:id", verifyToken, requireAdmin, async (req, res) => {
 });
 
 export default router;
+
 
