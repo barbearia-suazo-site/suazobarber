@@ -1,7 +1,7 @@
 import express from "express";
 import multer from "multer";
 import Service from "../models/Service.js";
-import { verifyToken, requireAdmin } from "../middlewares/auth.js";
+import { verifyToken, requireAdmin } from "../middleware/auth.js";
 
 const router = express.Router();
 
