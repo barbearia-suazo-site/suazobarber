@@ -9,10 +9,11 @@ const router = express.Router();
    ➕ Crear producto (solo admin)
    - Espera JSON:
      { name, price, description, imageUrl }
+   - En la base de datos se guarda en el campo "image"
 ===================================== */
 router.post("/", verifyToken, requireAdmin, async (req, res) => {
   try {
-    const { name, price, description, imageUrl } = req.body;
+    const { name, price, description, imageUrl, image } = req.body;
 
     if (!name || price == null) {
       return res
@@ -20,11 +21,14 @@ router.post("/", verifyToken, requireAdmin, async (req, res) => {
         .json({ error: "Nombre y precio son obligatorios." });
     }
 
+    // Cloudinary viene como imageUrl; por compatibilidad también aceptamos "image"
+    const finalImage = imageUrl || image || "";
+
     const payload = {
       name,
       price,
       description: description || "",
-      imageUrl: imageUrl || "",
+      image: finalImage, // 👈 este es el campo que se guarda en Mongo
     };
 
     const product = await Product.create(payload);
@@ -68,16 +72,21 @@ router.get("/:id", async (req, res) => {
    ✏️ Actualizar producto (solo admin)
    - También solo JSON:
      { name, price, description, imageUrl }
+   - Se sigue guardando en el campo "image"
 ===================================== */
 router.put("/:id", verifyToken, requireAdmin, async (req, res) => {
   try {
-    const { name, price, description, imageUrl } = req.body;
+    const { name, price, description, imageUrl, image } = req.body;
 
     const update = {};
     if (name != null) update.name = name;
     if (price != null) update.price = price;
     if (description != null) update.description = description;
-    if (imageUrl != null) update.imageUrl = imageUrl;
+
+    const finalImage = imageUrl || image;
+    if (finalImage != null) {
+      update.image = finalImage;
+    }
 
     const updated = await Product.findByIdAndUpdate(req.params.id, update, {
       new: true,
