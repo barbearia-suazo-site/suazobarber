@@ -1,6 +1,6 @@
 import express from "express";
 import mongoose from "mongoose";
-import { verifyToken } from "./auth.routes.js"; // protege com login JWT
+import { verifyToken, requireAdmin } from "../middlewares/auth.js"; // protege com login JWT
 
 const router = express.Router();
 
