@@ -36,7 +36,6 @@ export const verifyToken = (req, res, next) => {
   }
 };
 
-/**
  * Exige privilégio de admin.
  * Aceita se:
  *  - req.user.role === 'admin', OU
