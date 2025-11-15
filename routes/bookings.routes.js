@@ -30,12 +30,12 @@ router.post("/", async (req, res) => {
     const {
       name,
       email,
-      service,      // nome do serviço (ex.: "Corte Simples")
-      serviceId,    // opcional: id do serviço
+      service,   // nome do serviço (ex.: "Corte clásico (sin degradado)")
+      serviceId, // opcional: id do serviço
       date,
       duration,
-      price,        // opcional: preço enviado pelo front
-      total,        // opcional: total enviado pelo front
+      price,     // pode vir como número ou string
+      total,     // pode vir como número ou string
     } = req.body;
 
     if (!name || !email || !service || !date || !duration) {
@@ -45,46 +45,55 @@ router.post("/", async (req, res) => {
     }
 
     const startTime = new Date(date);
-    const endTime = new Date(startTime.getTime() + duration * 60000);
+    const endTime = new Date(startTime.getTime() + Number(duration) * 60000);
 
     // 1) Criar Appointment no Mongo
     const appointment = await Appointment.create({
       serviceName: service,
       date: startTime,
-      durationMinutes: duration,
+      durationMinutes: Number(duration),
       status: "scheduled",
     });
 
-    // 2) Determinar o valor da venda
+    // 2) Determinar o valor da venda (finalTotal)
     let finalTotal = null;
 
-    // a) se veio "total" no body
-    if (typeof total === "number") {
-      finalTotal = total;
-    }
-    // b) se veio "price" no body
-    else if (typeof price === "number") {
-      finalTotal = price;
+    // a) Tenta usar "total" (aceita número ou string tipo "15")
+    const numTotal = Number(total);
+    if (!Number.isNaN(numTotal) && numTotal > 0) {
+      finalTotal = numTotal;
     } else {
-      // c) tentar buscar por ID do serviço
-      let serviceDoc = null;
+      // b) Tenta usar "price" (aceita número ou string tipo "15")
+      const numPrice = Number(price);
+      if (!Number.isNaN(numPrice) && numPrice > 0) {
+        finalTotal = numPrice;
+      } else {
+        // c) se não vier nada que preste do front, busca no banco pelo serviço
+        let serviceDoc = null;
 
-      if (serviceId) {
-        serviceDoc = await Service.findById(serviceId);
-      }
+        // tenta por ID se foi enviado
+        if (serviceId) {
+          try {
+            serviceDoc = await Service.findById(serviceId);
+          } catch (e) {
+            console.warn("⚠️ serviceId inválido:", serviceId);
+          }
+        }
 
-      // d) se não tem ID ou não achou, tenta pelo nome
-      if (!serviceDoc && service) {
-        serviceDoc = await Service.findOne({ name: service });
-      }
+        // se ainda não achou, tenta pelo nome do serviço
+        if (!serviceDoc && service) {
+          serviceDoc = await Service.findOne({ name: service });
+        }
 
-      if (serviceDoc && typeof serviceDoc.price === "number") {
-        finalTotal = serviceDoc.price;
+        if (serviceDoc && typeof serviceDoc.price === "number") {
+          finalTotal = serviceDoc.price;
+        }
       }
     }
 
     let sale = null;
 
+    // 3) Se conseguimos achar um valor numérico, cria a venda
     if (finalTotal != null && !Number.isNaN(Number(finalTotal))) {
       sale = await Sale.create({
         total: Number(finalTotal),
@@ -98,6 +107,7 @@ router.post("/", async (req, res) => {
       startTime,
       endTime,
       finalTotal,
+      hasSale: !!sale,
     });
 
     return res.status(200).json({
