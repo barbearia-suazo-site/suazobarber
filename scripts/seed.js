@@ -33,7 +33,7 @@ async function run() {
      ✅ Admins permitidos
     ----------------------------------------- */
     const admins = [
-      { email: "admin@suazo.com", password: "jpDfkVu" },
+      { email: "admin@suazo.com", password: "Dhadysu2020" },
       { email: "admin@hiago.com", password: "jpDfkVuQDX07weiv" },
     ];
 
